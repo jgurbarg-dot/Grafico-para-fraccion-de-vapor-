@@ -110,7 +110,7 @@ y_eq = np.clip(pchip_interpolate(tp_sorted, y_sorted, current_tp), 0.0, 1.0)
 x_izq, x_der = (x_eq, y_eq) if x_eq < y_eq else (y_eq, x_eq)
 
 # ==========================================
-# CÁLCULOS (LOGICA INVERSA)
+# CÁLCULOS (LOGICA INVERSA CON LEYENDAS INTERCAMBIADAS)
 # ==========================================
 st.header("🧮 Cálculos en Tiempo Real")
 col1, col2, col3, col4 = st.columns(4)
@@ -121,16 +121,15 @@ if en_zona_bifasica:
     segmento_izq = abs(z_feed - x_izq)
     segmento_der = abs(x_der - z_feed)
     
-    # El segmento izquierdo (distancia al líquido) representa cuantitativamente al VAPOR
-    # El segmento derecho (distancia al vapor) representa cuantitativamente al LÍQUIDO
-    Distancia_V = segmento_izq  
-    Distancia_L = segmento_der  
+    # Se intercambian los nombres de las leyendas en las métricas según lo solicitado:
+    Distancia_L = segmento_izq  # El segmento de la izquierda ahora se etiqueta como L
+    Distancia_V = segmento_der  # El segmento de la derecha ahora se etiqueta como V
     
-    frac_vapor_calculada = Distancia_V / (Distancia_L + Distancia_V) if (Distancia_L + Distancia_V) > 0 else 0.0
+    frac_vapor_calculada = Distancia_L / (Distancia_L + Distancia_V) if (Distancia_L + Distancia_V) > 0 else 0.0
 
     col1.metric(f"{eje_y_tipo} Resultante", f"{current_tp:.2f} {unidad}")
-    col2.metric("Distancia L (Prop. Líquido)", f"{Distancia_L:.4f}")
-    col3.metric("Distancia V (Prop. Vapor)", f"{Distancia_V:.4f}")
+    col2.metric("Distancia L", f"{Distancia_L:.4f}")
+    col3.metric("Distancia V", f"{Distancia_V:.4f}")
     col4.metric("Fracción de Vapor V/(V+L)", f"{frac_vapor_calculada:.4f}")
 else:
     col1.metric(f"{eje_y_tipo} Resultante", f"{current_tp:.2f} {unidad}")
@@ -158,11 +157,12 @@ ax.axvline(x=z_feed, color='#0f2c59', linewidth=2.5, label=f'Alimentación (z = 
 if en_zona_bifasica:
     ax.plot([x_izq, x_der], [current_tp, current_tp], color='black', linewidth=2.5, marker='|', markersize=12)
     
-    # CORRECCIÓN EN GRÁFICA:
-    # El segmento izquierdo (entre x_izq y z_feed) representa la proporción de VAPOR -> Va la letra 'V'
-    # El segmento derecho (entre z_feed y x_der) representa la proporción de LÍQUIDO -> Va la letra 'L'
-    ax.text((x_izq + z_feed)/2, current_tp + (max_tp-min_tp)*0.015, 'V', fontsize=12, weight='bold', ha='center', color='blue')
-    ax.text((z_feed + x_der)/2, current_tp + (max_tp-min_tp)*0.015, 'L', fontsize=12, weight='bold', ha='center', color='red')
+    # Se mantiene la posición visual en el gráfico: L pegada a la izquierda, V pegada a la derecha
+    pos_L_grafica = x_izq + (x_der - x_izq) * 0.03
+    pos_V_grafica = x_der - (x_der - x_izq) * 0.03
+    
+    ax.text(pos_L_grafica, current_tp + (max_tp-min_tp)*0.015, 'L', fontsize=12, weight='bold', ha='left', color='red')
+    ax.text(pos_V_grafica, current_tp + (max_tp-min_tp)*0.015, 'V', fontsize=12, weight='bold', ha='right', color='blue')
 
 # Nodo de operación central (+ negro)
 ax.scatter([z_feed], [current_tp], color='black', marker='+', s=150, zorder=5)
