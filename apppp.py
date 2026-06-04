@@ -121,7 +121,8 @@ if en_zona_bifasica:
     segmento_izq = abs(z_feed - x_izq)
     segmento_der = abs(x_der - z_feed)
     
-    # Asignación correcta por brazo de palanca inverso
+    # El segmento izquierdo (distancia al líquido) representa cuantitativamente al VAPOR
+    # El segmento derecho (distancia al vapor) representa cuantitativamente al LÍQUIDO
     Distancia_V = segmento_izq  
     Distancia_L = segmento_der  
     
@@ -157,7 +158,9 @@ ax.axvline(x=z_feed, color='#0f2c59', linewidth=2.5, label=f'Alimentación (z = 
 if en_zona_bifasica:
     ax.plot([x_izq, x_der], [current_tp, current_tp], color='black', linewidth=2.5, marker='|', markersize=12)
     
-    # Colocación de etiquetas basándose en la regla inversa
+    # CORRECCIÓN EN GRÁFICA:
+    # El segmento izquierdo (entre x_izq y z_feed) representa la proporción de VAPOR -> Va la letra 'V'
+    # El segmento derecho (entre z_feed y x_der) representa la proporción de LÍQUIDO -> Va la letra 'L'
     ax.text((x_izq + z_feed)/2, current_tp + (max_tp-min_tp)*0.015, 'V', fontsize=12, weight='bold', ha='center', color='blue')
     ax.text((z_feed + x_der)/2, current_tp + (max_tp-min_tp)*0.015, 'L', fontsize=12, weight='bold', ha='center', color='red')
 
