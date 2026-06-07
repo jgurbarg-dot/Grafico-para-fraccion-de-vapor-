@@ -58,9 +58,8 @@ df_datos = pd.DataFrame({'x (Líquido)': x_arr, 'y (Vapor)': y_arr, eje_y_tipo: 
 st.sidebar.dataframe(df_datos, use_container_width=True)
 
 # ==========================================
-# NUEVO AJUSTE: INTERPOLACIÓN RESPECTO A COMPOSICIONES (X e Y)
+# AJUSTE: INTERPOLACIÓN RESPECTO A COMPOSICIONES (X e Y)
 # ==========================================
-# Como x e y son crecientes, ordenamos cada curva de manera independiente respecto a su fracción molar
 sort_x = np.argsort(x_arr)
 x_sorted_for_tp, tp_sorted_for_x = x_arr[sort_x], tp_arr[sort_x]
 
@@ -74,7 +73,7 @@ comp_smooth = np.linspace(0.0, 1.0, 1000)
 tp_smooth_x = pchip_interpolate(x_sorted_for_tp, tp_sorted_for_x, comp_smooth) # Líquido saturado
 tp_smooth_y = pchip_interpolate(y_sorted_for_tp, tp_sorted_for_y, comp_smooth) # Vapor saturado
 
-# Rangos de T/P globales de los datos experimentales
+# Rangos de T/P globales calculados
 min_tp, max_tp = float(tp_arr.min()), float(tp_arr.max())
 min_smooth, max_smooth = min(tp_smooth_x.min(), tp_smooth_y.min()), max(tp_smooth_x.max(), tp_smooth_y.max())
 
@@ -92,28 +91,15 @@ current_tp = (min_tp + max_tp) / 2
 if control_regla == f"{eje_y_tipo}":
     current_tp = st.sidebar.slider(f"Mover regla vertical en {eje_y_tipo}:", float(min_smooth), float(max_smooth), float(current_tp), 0.05)
     
-    # Encontrar todas las intersecciones de la T/P actual con las curvas de líquido (x) y vapor (y)
-    # Al haber un azeótropo, puede haber múltiples cruces. Buscamos el más cercano o resolvemos por interpolación local.
-    x_eq = np.interp(current_tp, tp_smooth_x, comp_smooth, left=np.nan, right=np.nan)
-    y_eq = np.interp(current_tp, tp_smooth_y, comp_smooth, left=np.nan, right=np.nan)
-    
-    # Si falla la interpolación simple por la inversión del azeótropo, usamos aproximación por máscaras
-    if np.isnan(x_eq):
-        idx_x = np.argmin(np.abs(tp_smooth_x - current_tp))
-        x_eq = comp_smooth[idx_x]
-    if np.isnan(y_eq):
-        idx_y = np.argmin(np.abs(tp_smooth_y - current_tp))
-        y_eq = comp_smooth[idx_y]
+    idx_x = np.argmin(np.abs(tp_smooth_x - current_tp))
+    x_eq = comp_smooth[idx_x]
+    idx_y = np.argmin(np.abs(tp_smooth_y - current_tp))
+    y_eq = comp_smooth[idx_y]
 else:
     frac_vapor_req = st.sidebar.slider("Fracción de Vapor Requerida:", 0.0, 1.0, 0.60, 0.01)
     
-    # REGLA DE LA PALANCA INVERSA CONTINUA ADAPTADA
     with np.errstate(divide='ignore', invalid='ignore'):
-        perfil_frac_v = (z_feed - comp_smooth) / (comp_smooth - comp_smooth) # dummy estructural
-        
-        # En cada punto 'comp_smooth' asumido como x, calculamos su T y su y correspondiente
         tp_hipotetica = tp_smooth_x
-        # Buscamos qué 'y' tiene esa misma temperatura en la otra curva
         y_correspondiente = np.array([comp_smooth[np.argmin(np.abs(tp_smooth_y - t))] for t in tp_hipotetica])
         
         frac_bifasica = (z_feed - comp_smooth) / (y_correspondiente - comp_smooth)
@@ -135,7 +121,6 @@ else:
     else:
         current_tp = (min_tp + max_tp) / 2
 
-    # Recalcular x_eq e y_eq precisos para la T/P obtenida
     idx_x = np.argmin(np.abs(tp_smooth_x - current_tp))
     x_eq = comp_smooth[idx_x]
     idx_y = np.argmin(np.abs(tp_smooth_y - current_tp))
@@ -146,7 +131,7 @@ y_eq = np.clip(y_eq, 0.0, 1.0)
 x_izq, x_der = (x_eq, y_eq) if x_eq < y_eq else (y_eq, x_eq)
 
 # ==========================================
-# CÁLCULOS (LOGICA INVERSA CON LEYENDAS INTERCAMBIADAS)
+# CÁLCULOS EN TIEMPO REAL
 # ==========================================
 st.header("🧮 Cálculos en Tiempo Real")
 col1, col2, col3, col4 = st.columns(4)
@@ -177,7 +162,7 @@ else:
 # ==========================================
 fig, ax = plt.subplots(figsize=(10, 6))
 
-# Curvas continuas suaves (Graficamos X en el eje horizontal, T/P calculada en el eje vertical)
+# Curvas continuas suaves 
 ax.plot(comp_smooth, tp_smooth_x, color='red', label='Línea de Líquido Saturado (x)', linewidth=2)
 ax.plot(comp_smooth, tp_smooth_y, color='blue', linestyle='--', label='Línea de Vapor Saturado (y)', linewidth=2)
 
@@ -188,7 +173,7 @@ ax.scatter(y_arr, tp_arr, color='darkblue', marker='o', s=50, label='Puntos dato
 # Alimentación vertical fija escrita por el usuario
 ax.axvline(x=z_feed, color='#0f2c59', linewidth=2.5, label=f'Alimentación (z = {z_feed:.4f})')
 
-# Trazado físico de la recta de reparto
+# Trazado físico de la recta de reparto (Línea Negra)
 if en_zona_bifasica:
     ax.plot([x_izq, x_der], [current_tp, current_tp], color='black', linewidth=2.5, marker='|', markersize=12)
     
@@ -202,7 +187,7 @@ if en_zona_bifasica:
 ax.scatter([z_feed], [current_tp], color='black', marker='+', s=150, zorder=5)
 
 # ==========================================
-# CONTROLES EXTRA: LÍNEAS MANUALES Y PUNTERO
+# CONTROLES EXTRA: LÍNEAS MANUALES
 # ==========================================
 st.sidebar.header("🛠️ 3. Añadir Líneas Manuales")
 tipo_linea = st.sidebar.selectbox("Tipo:", ["Horizontal", "Vertical"])
@@ -219,19 +204,37 @@ for line in st.session_state.manual_lines:
     else:
         ax.axvline(x=line['valor'], color='gray', linestyle=':', alpha=0.7)
 
-# PUNTERO INTERACTIVO CORREGIDO PARA AZEÓTROPOS
+# ==========================================
+# NUEVO: PUNTERO HORIZONTAL CONTROLADO POR T / P 
+# ==========================================
 st.sidebar.header("🎯 4. Puntero Equivalente")
 
-# Buscamos las posiciones asociadas al slider utilizando las curvas dependientes de la composición
-pos_puntero_comp = st.sidebar.slider("Mover Puntero sobre Composiciones (X/Y):", 0.0, 1.0, 0.5, 0.01)
-tp_p_x = pchip_interpolate(x_sorted_for_tp, tp_sorted_for_x, pos_puntero_comp)
-tp_p_y = pchip_interpolate(y_sorted_for_tp, tp_sorted_for_y, pos_puntero_comp)
+# El slider se adapta automáticamente a los límites de Temperatura o Presión
+pos_puntero_tp = st.sidebar.slider(
+    f"Mover Puntero en {eje_y_tipo}:", 
+    float(min_smooth), 
+    float(max_smooth), 
+    float((min_smooth + max_smooth) / 2),
+    0.05
+)
 
-# Marcadores verdes del puntero
-ax.scatter([pos_puntero_comp], [tp_p_x], color='green', marker='s', s=40)
-ax.scatter([pos_puntero_comp], [tp_p_y], color='green', marker='s', s=40)
+# Encontrar los valores de composición (x, y) cruzando el valor de T/P del slider con las curvas
+idx_p_x = np.argmin(np.abs(tp_smooth_x - pos_puntero_tp))
+x_puntero = comp_smooth[idx_p_x]
 
-st.sidebar.info(f"📍 **Equivalencias del Puntero (para Z = {pos_puntero_comp:.2f}):**\n- T/P Líquido (x): {tp_p_x:.2f} {unidad}\n- T/P Vapor (y): {tp_p_y:.2f} {unidad}")
+idx_p_y = np.argmin(np.abs(tp_smooth_y - pos_puntero_tp))
+y_puntero = comp_smooth[idx_y_p] if 'idx_y_p' in locals() else comp_smooth[idx_p_y]
+
+# Dibujar la línea verde horizontal que conecta los dos extremos de equilibrio en esa T/P
+ax.plot([x_puntero, y_puntero], [pos_puntero_tp, pos_puntero_tp], color='green', linestyle='-', linewidth=2.5, label='Puntero de Equilibrio')
+ax.scatter([x_puntero, y_puntero], [pos_puntero_tp, pos_puntero_tp], color='green', marker='s', s=50, zorder=5)
+
+# Desplegar la información exacta en el cuadro informativo lateral
+st.sidebar.info(
+    f"📍 **Equivalencias para {eje_y_tipo} = {pos_puntero_tp:.2f} {unidad}:**\n\n"
+    f"- 🔴 **Composición Líquido (x):** {x_puntero:.4f}\n"
+    f"- 🔵 **Composición Vapor (y):** {y_puntero:.4f}"
+)
 
 # Rejilla y límites del gráfico
 ax.set_xlabel("Fracción Molar (x, y)", fontsize=11)
